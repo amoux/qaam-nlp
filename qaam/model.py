@@ -13,11 +13,13 @@ from autocorrect import Speller
 from autocorrect.word_count import count_words
 from david import (SimilarDocuments, extract_text_from_url,
                    normalize_whitespace, remove_punctuation, unicode_to_ascii)
+from david.text.summarization import spacy_summarizer
 from nptyping import Array
 
 Response = TypeVar('Response', Callable, requests.Response)
 
-HISTORY = {'question': [], 'spelling': [], 'query': [], 'answer': [], 'context': []}
+HISTORY = {'question': [], 'spelling': [],
+           'query': [], 'answer': [], 'context': []}
 
 
 class QAAM(SimilarDocuments):
@@ -26,12 +28,22 @@ class QAAM(SimilarDocuments):
     spell_vocab_file = "vocab.txt"
     spell_words_file = "words.json"
 
-    def __init__(self, top_k=10, ngram=(1, 3), threshold=0.1, feature="tfidf", model="en_core_web_sm", speller_lang="en"):
+    def __init__(
+        self,
+        top_k: int = 10,
+        ngram: Tuple[int, int]=(1, 3),
+        threshold: float = 0.1,
+        feature: str = "tfidf",
+        model: str = "en_core_web_sm",
+        speller_lang: str = "en",
+        summerizer: bool = False,
+    ):
         super()
         self.top_k = top_k
         self.ngram = ngram
         self.feature = feature
         self.nlp = spacy.load(model)
+        self.summerizer = summerizer
         self.server_url = "http://localhost:5000/model/predict"
         self.threshold = threshold
         self.doc = None
@@ -77,13 +89,15 @@ class QAAM(SimilarDocuments):
 
     def _load_context(self, question: str) -> Tuple[str, str]:
         self.history["question"].append(question)
-
         # build and initialize the vocabulary from the url's texts.
         self.learn_vocab()
         self.spell.nlp_data.update(self._load_spelling_context())
         question = self.spell(question)
         question_as_query = remove_punctuation(question)
+
         paragraph = self._build_paragraph(question_as_query)
+        if self.summerizer and len(paragraph) > 100:
+            paragraph = spacy_summarizer(paragraph)
 
         self.history["spelling"].append(question)
         self.history["query"].append(question_as_query)
@@ -140,7 +154,7 @@ class QAAM(SimilarDocuments):
 
         `url` (str): A website's full url where the text will be extracted.
 
-        Returns -> (None): The extracted text is preprocessed and converted to 
+        Returns -> (None): The extracted text is preprocessed and converted to
             sentences for the context in a session.
         """
         texts = extract_text_from_url(url)
