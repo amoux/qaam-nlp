@@ -2,7 +2,8 @@ import json
 import os
 import tarfile
 from contextlib import closing
-from typing import IO, Callable, Dict, List, Optional, Tuple, TypeVar, Union
+from typing import (IO, Callable, Dict, List, NoReturn, Optional, Tuple,
+                    TypeVar, Union)
 
 import cupy
 import requests
@@ -42,7 +43,7 @@ class QAAM(SimilarDocuments):
         self._spell_words_fp = self._load_path(self.spell_words_file)
         self._spell_nlp_fp = self._load_path(self.spell_nlp_file)
 
-    def _load_path(self, filename: str):
+    def _load_path(self, filename: str) -> NoReturn:
         return os.path.join(self.spell_basepath, filename)
 
     def _save_spelling_context(self, lang: str = "en") -> IO:
@@ -96,7 +97,7 @@ class QAAM(SimilarDocuments):
             self.history["answer"].append(answer)
         return answer, paragraph
 
-    def add_url(self, url: str) -> None:
+    def add_url(self, url: str) -> NoReturn:
         """Adds a the url where the model is served."""
         self.server_url = "{}/model/predict".format(url)
 
@@ -110,11 +111,11 @@ class QAAM(SimilarDocuments):
         ----------
 
         `questions` (Union[str, List[str]]):
-            Pass a single (`str`) question or a (`List[str]`) of multiple questions.
+            Pass a single string question or an iterable of multiple questions.
 
         `context` (str):
-            The context the model will use to answer the question(s).
-            Note the max number of characters is `~1000`.
+            The context the model will use to answer the question(s). Note the max
+            number of characters is `~1000`.
 
         Usage:
             >>> context = ("Self is merely a conventional name "
@@ -124,16 +125,14 @@ class QAAM(SimilarDocuments):
             >>> print(answer['predictions'][0][0])
             'a conventional name for the first argument of a method'
 
-        Returns -> (Response):
-            A response object, obtain the results with `response.json()`.
-
+        Returns (Response): A response object, obtain the results with `response.json()`.
         """
         if isinstance(questions, str):
             questions = [questions]
         return requests.post(self.server_url, json={
             "paragraphs": [{"context": context, "questions": questions}]})
 
-    def texts_from_url(self, url: str) -> None:
+    def texts_from_url(self, url: str) -> NoReturn:
         """Extracts all available text from a website.
 
         Parameters:
@@ -141,9 +140,8 @@ class QAAM(SimilarDocuments):
 
         `url` (str): A website's full url where the text will be extracted.
 
-        Returns -> (None): The extracted text is preprocessed and converted
-            to sentences for the context in a session.
-
+        Returns -> (None): The extracted text is preprocessed and converted to 
+            sentences for the context in a session.
         """
         texts = extract_text_from_url(url)
         texts = unicode_to_ascii(texts)
