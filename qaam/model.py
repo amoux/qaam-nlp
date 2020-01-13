@@ -58,14 +58,16 @@ class QAAM(SimilarDocuments):
         self._spell_vocab_fp = self._load_path(self.spell_vocab_file)
         self._spell_words_fp = self._load_path(self.spell_words_file)
         self._spell_nlp_fp = self._load_path(self.spell_nlp_file)
+        self._is_env_context_ready: bool = False
 
     def _load_path(self, filename: str) -> NoReturn:
         return os.path.join(self.spell_basepath, filename)
 
     def _save_spelling_context(self, lang: str = "en") -> IO:
-        # Saves the necessary data sourcer for the Speller context.
         if not os.path.isdir(self.spell_basepath):
             os.makedirs(self.spell_basepath)
+
+        # Saves the necessary data sourcer for the Speller context.
         with open(self._spell_vocab_fp, mode="w") as file:
             for word in self.vectorizer.vocabulary_:
                 file.write("%s\n" % word)
@@ -83,22 +85,28 @@ class QAAM(SimilarDocuments):
                 return json.load(file)
 
     def _build_paragraph(self, query: str) -> str:
+        # Finds all similar sentences given the query.
         sim_doc = []
         for doc in self.iter_similar(self.top_k, query, True):
             if doc["sim"] > self.threshold:
                 sim_doc.append(doc["text"])
+
+        # Format all similar sentences to a "paragraph" format.
         sim_texts = " ".join(sim_doc)
         paragraph = sim_texts.replace("\n\n", " ").replace("\n", " ").strip()
         return paragraph
 
-    def _load_context(self, question: str) -> Tuple[str, str]:
-        self.history["question"].append(question)
-        # build and initialize the vocabulary from the url's texts.
+    def _load_env_context(self) -> NoReturn:
+        # Initialize the vocabulary and context dependacies.
         self.learn_vocab()
-        self.spell.nlp_data.update(self._load_spelling_context())
+        env_context_vocab = self._load_spelling_context()
+        self.spell.nlp_data.update(env_context_vocab)
+        self._is_env_context_ready = True
+
+    def _build_answer(self, question: str) -> Tuple[str, str]:
+        # Builds answer and context (paragraph) given the query.
         question = self.spell(question)
         question_as_query = remove_punctuation(question)
-
         paragraph = self._build_paragraph(question_as_query)
         if self.summarize and len(paragraph) > 100:
             paragraph = text_summarizer(paragraph)
@@ -107,7 +115,7 @@ class QAAM(SimilarDocuments):
         self.history["query"].append(question_as_query)
         self.history["context"].append(paragraph)
 
-        # fetch the question and context paragraph to the maxq model.
+        # Fetch the question and context paragraph to the maxq model.
         response = self.max_model(question, paragraph)
         answer = response.json()
         if "ok" in answer.values():
@@ -120,28 +128,16 @@ class QAAM(SimilarDocuments):
         self.server_url = "{url}/model/predict".strip()
 
     def max_model(self, questions: Union[str, List[str]], context: str) -> Response:
-        """Loads the question and context to the MAXQ Server Model.
-
-        This method assumes both; the context has been properly formated
-        and the server model's endpoint url is configured `server_url`.
-        """
+        """Loads the question and context to the MAXQ Server Model."""
         if isinstance(questions, str):
             questions = [questions]
 
         return requests.post(self.server_url, json={
-            "paragraphs": [{"context": context, "questions": questions}]})
+            "paragraphs": [{"context": context, "questions": questions}]
+        })
 
     def texts_from_url(self, url: str) -> NoReturn:
-        """Extracts all available text from a website.
-
-        Parameters:
-        ----------
-
-        `url` (str): A website's full url where the text will be extracted.
-
-        Returns -> (None): The extracted text is preprocessed and converted to
-            sentences for the context in a session.
-        """
+        """Extracts all available text from a website."""
         texts = extract_text_from_url(url)
         texts = unicode_to_ascii(texts)
         texts = normalize_whitespace(texts)
@@ -156,7 +152,12 @@ class QAAM(SimilarDocuments):
     def answer(self, question: str, top_k: Optional[int] = None) -> Dict[str, str]:
         """Answers any question related to the content from the website."""
         self.top_k = top_k if top_k else self.top_k
-        answer, context = self._load_context(question)
+
+        # Builds the context and vocabulary only if it hasn't been initialized.
+        if not self._is_env_context_ready:
+            self._load_env_context()
+
+        answer, context = self._build_answer(question)
         return dict(answer=answer, context=context)
 
     def common_entities(self, top_k: int = 10, lower: bool = False) -> List[Tuple[str, int]]:
@@ -168,7 +169,6 @@ class QAAM(SimilarDocuments):
                 entities[ent] = 1
             else:
                 entities[ent] += 1
-
         return Counter(entities).most_common(top_k)
 
     def embedd_sequence(self, sequence: str) -> Array:
