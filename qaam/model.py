@@ -1,6 +1,7 @@
 import json
 import os
 import tarfile
+from collections import Counter
 from contextlib import closing
 from typing import (IO, Callable, Dict, List, NoReturn, Optional, Tuple,
                     TypeVar, Union)
@@ -11,9 +12,11 @@ import scipy
 import spacy
 from autocorrect import Speller
 from autocorrect.word_count import count_words
-from david import (SimilarDocuments, extract_text_from_url,
-                   normalize_whitespace, remove_punctuation, unicode_to_ascii)
-from david.text.summarization import spacy_summarizer
+from david.cosine import SimilarDocuments
+from david.text.prep import (normalize_whitespace, remove_punctuation,
+                             unicode_to_ascii)
+from david.text.summarization import summarizer as text_summarizer
+from david.text.utils import extract_text_from_url
 from nptyping import Array
 
 Response = TypeVar('Response', Callable, requests.Response)
@@ -36,15 +39,16 @@ class QAAM(SimilarDocuments):
         feature: str = "tfidf",
         model: str = "en_core_web_sm",
         speller_lang: str = "en",
-        summerizer: bool = False,
+        summarize: bool = False,
+        server_url: str = "http://localhost:5000",
     ):
         super()
         self.top_k = top_k
         self.ngram = ngram
         self.feature = feature
         self.nlp = spacy.load(model)
-        self.summerizer = summerizer
-        self.server_url = "http://localhost:5000/model/predict"
+        self.summarize = summarize
+        self.server_url = f"{server_url}/model/predict".strip()
         self.threshold = threshold
         self.doc = None
         self.queries = []
@@ -96,8 +100,8 @@ class QAAM(SimilarDocuments):
         question_as_query = remove_punctuation(question)
 
         paragraph = self._build_paragraph(question_as_query)
-        if self.summerizer and len(paragraph) > 100:
-            paragraph = spacy_summarizer(paragraph)
+        if self.summarize and len(paragraph) > 100:
+            paragraph = text_summarizer(paragraph)
 
         self.history["spelling"].append(question)
         self.history["query"].append(question_as_query)
@@ -111,38 +115,19 @@ class QAAM(SimilarDocuments):
             self.history["answer"].append(answer)
         return answer, paragraph
 
-    def add_url(self, url: str) -> NoReturn:
+    def add_server_url(self, url: str) -> NoReturn:
         """Adds a the url where the model is served."""
-        self.server_url = "{}/model/predict".format(url)
+        self.server_url = "{url}/model/predict".strip()
 
     def max_model(self, questions: Union[str, List[str]], context: str) -> Response:
         """Loads the question and context to the MAXQ Server Model.
 
         This method assumes both; the context has been properly formated
         and the server model's endpoint url is configured `server_url`.
-
-        Parameters:
-        ----------
-
-        `questions` (Union[str, List[str]]):
-            Pass a single string question or an iterable of multiple questions.
-
-        `context` (str):
-            The context the model will use to answer the question(s). Note the max
-            number of characters is `~1000`.
-
-        Usage:
-            >>> context = ("Self is merely a conventional name "
-                           "for the first argument of a method.")
-            >>> question = "What is self?"
-            >>> answer = qaam.max_model(question, context).json()
-            >>> print(answer['predictions'][0][0])
-            'a conventional name for the first argument of a method'
-
-        Returns (Response): A response object, obtain the results with `response.json()`.
         """
         if isinstance(questions, str):
             questions = [questions]
+
         return requests.post(self.server_url, json={
             "paragraphs": [{"context": context, "questions": questions}]})
 
@@ -173,6 +158,18 @@ class QAAM(SimilarDocuments):
         self.top_k = top_k if top_k else self.top_k
         answer, context = self._load_context(question)
         return dict(answer=answer, context=context)
+
+    def common_entities(self, top_k: int = 10, lower: bool = False) -> List[Tuple[str, int]]:
+        """Returns the most common entities from the document."""
+        entities = dict()
+        for ent in self.doc.ents:
+            ent = ent.text if not lower else ent.text.lower()
+            if ent not in entities:
+                entities[ent] = 1
+            else:
+                entities[ent] += 1
+
+        return Counter(entities).most_common(top_k)
 
     def embedd_sequence(self, sequence: str) -> Array:
         """Returns an embedded (Array) from a string sequence of tensors."""
