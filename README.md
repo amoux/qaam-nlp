@@ -2,15 +2,22 @@
 
 `qaam-nlp` is an question and answering api for any text content that can be extracted from the web.
 
+**installation:**
+
+```bash
+pip install -r requirements.txt
+pip install .
+```
+
 **usage:**
 
-> Extract texts form a website e.g., blog or article and loading preprocessing all the text content by simply using the `david.text_from_url()` instance method:
+> Extract text content from a website's blog or article:
 
-- First, install the package: `pip install .` and import the `QAAM` class. Below are some of the default parameters that can be configured to accommodate a document's environment. The `server_url` parameter is the only parameter that you need to configure - which is the url endpoint where the model is being served.
+- First, import the `QAAM` class. Below are some of the default parameters that can be configured to accommodate a document's environment. The `server_url` parameter is the only parameter that you need to configure - which is the url endpoint where the model is being served.
 
 ```python
 from qaam import QAAM
-qaam = QAAM(top_k=20, feature="tfidf", ngram=(1,3), server_url="http://server.com")
+qaam = QAAM(top_k=20, feature="tfidf", ngram=(1,3), server_url="http://f7bbbad2.ngrok.io")
 qaam.texts_from_url("https://www.entrepreneur.com/article/241026")
 
 # All the content has been loaded.
@@ -25,7 +32,7 @@ qaam.common_entities()
  ('Privacy Policy', 1)]
 ```
 
-> How to query questions from a website's blog text content:
+> How to query questions from a website's text content:
 
 ```python
 from pprint import pprint
@@ -43,19 +50,28 @@ pprint(prediction)
             'insurance policies.'}
 ```
 
-> How does the model improve results better than other more complex methods? Simply, by adjusting the input (question) to the context (paragraph) of the environment (website's text content). In short, the model will properly accommodate any query to the environment's vocabulary.
+> How does the model improve results better than other more complex methods? Simply, by adjusting the input (question) to the context of it's environment (website's texts). In short, the model will properly accommodate any query to the environment's vocabulary.
 
 ```python
-# Let's see how the incorrect question is fixed.
-question = "Why there's no one-siez-fits-all polucy?"
+# Let's see how the grammatically incorrect question is fixed.
+question = "Why there's no one-siez-fits-all polucy for a busineses in each industry?"
 prediction = qaam.answer(question)
 
 # What the QA model actually 'sees'.
 print(qaam.history["spelling"])
 ...
-["Why there's no one-size-fits-all policy?"]
+["Why there's no one-size-fits-all policy for a business in each industry?"]
 
 # What cosine similarly actually 'sees'
 print(qaam.history["query"])
-["Why there 's no one-size-fits-all policy"]
+["Why there 's no one-size-fits-all policy for a business in each industry"]
+
+# Since the question was properly encoded and fixed, the predictions improve.
+pprint(prediction)
+...
+{'answer': 'Each industry has its own set of concerns that will be addressed '
+           'in a customized policy written for a business',
+ 'context': 'There is no one-size-fits-all policy for professional liability '
+            'insurance. Each industry has its own set of concerns that will be '
+            'addressed in a customized policy written for a business.'}
 ```
