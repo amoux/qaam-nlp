@@ -29,7 +29,6 @@ from david.text.utils import extract_text_from_url
 from nptyping import Array
 from spacy.tokens import Doc
 
-
 HISTORY: Dict[str, List[str]] = {
     "question": [],
     "spelling": [],
@@ -85,7 +84,6 @@ class QAAM(SimilarDocuments):
         with open(self._spell_vocab_fp, mode="w") as file:
             for word in self.vectorizer.vocabulary_:
                 file.write("%s\n" % word)
-
         # save the speller data files to a temp file.
         count_words(self._spell_vocab_fp, lang, self._spell_words_fp)
         nlp_tarfile = tarfile.open(self._spell_nlp_fp, "w:gz")
@@ -122,30 +120,22 @@ class QAAM(SimilarDocuments):
         spelling = self.spell(question)
         query = remove_punctuation(spelling)
         context = self._build_paragraph(query)
-
         # len("word word word word") => 19 (not a positive result)
         if len(context) < 20:
             raise Exception(
                 f"Invalid paragraph, got size {len(context)} "
                 "most likely caused by the question (Not related to context)."
             )
-
         if self.summarize and len(context) > 100:
             paragraph = text_summarizer(context)
 
-        key_names = ["question", "spelling", "query", "context"]
-        key_data = (question, spelling, query, context)
-        for names, data in zip(key_names, key_data):
-            self.history[key_names].append(key_data)
-
-        # self.history["question"].append(question)
-        # self.history["spelling"].append(spelling)
-        # self.history["query"].append(query)
-        # self.history["context"].append(context)
+        self.history["question"].append(question)
+        self.history["spelling"].append(spelling)
+        self.history["query"].append(query)
+        self.history["context"].append(context)
 
         # Fetch the question and context paragraph to the maxq model.
         response = self.max_model(spelling, context)
-
         if response.status_code == 200:
             answer = response.json()
             answer = answer["predictions"][0][0]
@@ -155,7 +145,6 @@ class QAAM(SimilarDocuments):
             pass
         else:
             raise Exception("Failed to communicate with the Server endpoint.")
-
         return answer, context
 
     def add_server_url(self, url: str) -> None:
@@ -178,12 +167,15 @@ class QAAM(SimilarDocuments):
         texts = extract_text_from_url(url)
         texts = unicode_to_ascii(texts)
         texts = normalize_whitespace(texts)
+
         self.doc = self.nlp(texts)
         sentences: List[str] = []
         for sent in self.doc.sents:
             if sent.text:
                 sentences.append(sent.text)
+
         self.raw_doc.extend(sentences)
+        self._is_env_context_ready = False
         del sentences
 
     def texts_from_string(self, sequences, preprocess: bool = False) -> None:
@@ -191,12 +183,15 @@ class QAAM(SimilarDocuments):
         if preprocess:
             sequences = unicode_to_ascii(sequences)
             sequences = normalize_whitespace(sequences)
+
         self.doc = self.nlp(sequences)
         sentences: List[str] = []
         for sent in self.doc.sents:
             if sent.text:
                 sentences.append(sent.text)
+
         self.raw_doc.extend(sentences)
+        self._is_env_context_ready = False
         del sentences
 
     def texts_from_doc(self, document: List[str], preprocess: bool = False) -> None:
@@ -214,19 +209,18 @@ class QAAM(SimilarDocuments):
         for sent in self.doc.sents:
             if sent.text:
                 sentences.append(sent.text)
+
         self.raw_doc.extend(sentences)
+        self._is_env_context_ready = False
         del sentences
 
     def answer(self, question: str, top_k: Optional[int] = None) -> Dict[str, str]:
         """Answers any question related to the content from the website."""
         if not isinstance(question, str):
             raise Exception(
-                f"Invalid type, question needs be of string type not {type(question)}."
-            )
+                f"Invalid type, question needs be of string type not {type(question)}.")
         if len(question.split()) < 4:
-            raise Exception(
-                f"{len(question.split())} words is not decent question size"
-            )
+            raise Exception(f"{len(question.split())} words is not decent question size")
 
         self.top_k = top_k if top_k else self.top_k
         # Builds the context and vocabulary only if it hasn't been initialized.
