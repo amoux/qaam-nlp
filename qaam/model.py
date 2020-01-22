@@ -205,8 +205,11 @@ class QAAM(SimilarDocuments):
             texts: List[str] = []
             for line in document:
                 texts.append(normalize_whitespace(unicode_to_ascii(line)))
+            self.doc = self.nlp(" ".join(texts))
+            del texts
+        else:
+            self.doc = self.nlp(" ".join(document))
 
-        self.doc = self.nlp(" ".join(texts))
         sentences: List[str] = []
         for sent in self.doc.sents:
             if sent.text:
