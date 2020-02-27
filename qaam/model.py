@@ -1,22 +1,18 @@
+from typing import List
+
 import cupy
 import numpy as np
 import scipy
 import spacy
 from autocorrect import Speller
-from transformers import pipeline
-
 from david.text import extract_text_from_url, normalize_whitespace, unicode_to_ascii
 from david.text.summarization import summarizer as text_summarizer
 from david.tokenizers import Tokenizer
+from transformers import pipeline
 
 
 class QAAM:
-    """Question Answering Auto Model.
-
-    Question-answering model based on transformers auto models
-    based on the SQuAd dataset. The context is based on tokenization
-    and Tfidf feature extraction techniques.
-    """
+    """Question Answering Auto Model."""
 
     def __init__(
         self,
@@ -33,9 +29,9 @@ class QAAM:
         self.speller = None
         self.document = None
         self.vocab_matrix = None
-        self._is_enviroment_context_ready = False
+        self._is_enviroment_vocabulary_ready = False
 
-    def _build_context_enviroment(self):
+    def _build_enviroment_vocabulary(self):
         tokenizer = Tokenizer(document=self.document)
         tokenizer.fit_vocabulary(mincount=1)
         sequences = tokenizer.document_to_sequences(document=self.document)
@@ -48,9 +44,10 @@ class QAAM:
 
         self.tokenizer = tokenizer
         self.speller = speller
-        self._is_enviroment_context_ready = True
+        self._is_enviroment_vocabulary_ready = True
 
     def _build_context_paragraph(self, query: str, top_k: int):
+        # encode the query as a vector and compute its dot product with the vocab-matrix
         embedd_query = self.tokenizer.convert_string_to_ids(query)
         matrix_query = self.tokenizer.sequences_to_matrix([embedd_query], "tfidf")
 
@@ -81,7 +78,7 @@ class QAAM:
         answer["context"] = context  # add the context to the answer dict.
         return answer
 
-    def _preprocess_texts(self, texts):
+    def _preprocess_texts(self, texts: str):
         texts = normalize_whitespace(unicode_to_ascii(texts))
         document = []
         doc = self.nlp_model(texts)
@@ -98,7 +95,7 @@ class QAAM:
         """Load texts from an string sequences."""
         self._preprocess_texts(sequences)
 
-    def texts_from_doc(self, document):
+    def texts_from_doc(self, document: List[str]):
         """Load texts from an iterable list of string sequences."""
         document = []
         for doc in self.nlp_model.pipe(document):
@@ -127,8 +124,8 @@ class QAAM:
 
     def answer(self, question: str, top_k=10):
         """Return an answer based on the question to the text context."""
-        if not self._is_enviroment_context_ready:
-            self._build_context_enviroment()
+        if not self._is_enviroment_vocabulary_ready:
+            self._build_enviroment_vocabulary()
         return self._build_answer(question, top_k=top_k)
 
     def to_tensor(self, sequence: str):
