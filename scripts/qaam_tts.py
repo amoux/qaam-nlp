@@ -1,5 +1,3 @@
-
-
 from watson_text_talker import TextTalker, TT_Config, TT_Importance
 
 from ..qaam import QAAM
@@ -7,7 +5,7 @@ from ..qaam import QAAM
 TTSConfig = {
     "apikey": "KimsTEZMLu5TPUmS62utcjbt-ywpu95inG1cvqW43ROL",
     "iam_apikey_name": "maxqmodel",
-    "url": "https://api.us-south.text-to-speech.watson.cloud.ibm.com/instances/7b0d5686-5cb2-4bad-bc78-796b95de05cc"
+    "url": "https://api.us-south.text-to-speech.watson.cloud.ibm.com/instances/7b0d5686-5cb2-4bad-bc78-796b95de05cc",
 }
 
 config = TT_Config()
@@ -19,9 +17,11 @@ text_talker = TextTalker(config=config)
 SERVER_ENDPOINT = "http://localhost:5000"
 
 phrase = TT_Importance()
-introduction = [(phrase.SAY_ALWAYS, "Hello, I am David."),
-                (phrase.SAY_ALWAYS, "I am ready to answer your questions!"),
-                (phrase.SAY_ALWAYS, "Please enter the website in the input field to get started.")]
+introduction = [
+    (phrase.SAY_ALWAYS, "Hello, I am David."),
+    (phrase.SAY_ALWAYS, "I am ready to answer your questions!"),
+    (phrase.SAY_ALWAYS, "Please enter the website in the input field to get started."),
+]
 
 if introduction:
     text_talker.say_group(introduction)
@@ -39,12 +39,11 @@ if num_words:
 
 
 if __name__ == "__main__":
-    STOP_FLAG = 'quit'
+    STOP_FLAG = "quit"
     while True:
         query = input("question : ").strip()
         if query.lower() != STOP_FLAG:
-            question = query if query.endswith("?") \
-                else query.capitalize() + "?"
+            question = query if query.endswith("?") else query.capitalize() + "?"
 
             prediction = qaam.answer(question)
             answer = prediction["answer"]

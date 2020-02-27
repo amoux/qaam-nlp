@@ -2,76 +2,96 @@
 
 `qaam-nlp` is an question and answering api for any text content that can be extracted from the web.
 
-**installation:**
+## Installation
 
 ```bash
 pip install -r requirements.txt
 pip install .
 ```
 
-**usage:**
+## Usage
 
-> Extract text content from a website's blog or article:
+Extract text content from a website's blog or article:
 
-- First, import the `QAAM` class. Below are some of the default parameters that can be configured to accommodate a document's environment. The `server_url` parameter is the only parameter that you need to configure - which is the url endpoint where the model is being served.
+> First, import the `QAAM` class. Below are some of the default parameters that can be configured to accommodate a document's environment.
+
+- You can add texts with one of following instance methods:
+  - `self.texts_from_str(str:Sequence[str])`
+  - `self.texts_from_doc(doc:List[str])`
+  - `self.texts_from_url(url:str)`
 
 ```python
 from qaam import QAAM
-qaam = QAAM(top_k=20, feature="tfidf", ngram=(1,3), server_url="http://f7bbbad2.ngrok.io")
-qaam.texts_from_url("https://www.entrepreneur.com/article/241026")
 
-# All the content has been loaded.
-qaam.common_entities()
+qaam = QAAM(threshold=0.2, summarize=True)
+wiki_url = "https://en.wikipedia.org/wiki/Transformer_(machine_learning_model)"
+qaam.texts_from_url(wiki_url) # texts are processed automatically
+qaam.common_entities(top_k=10)
 ...
-[('first', 2),
- ('One', 2),
- ('the day', 1),
- ('one', 1),
- ('third', 1),
- ('Cover Entrepreneur Media, Inc.', 1),
- ('Privacy Policy', 1)]
+[('Transformer', 6),
+ ('Transformers', 5),
+ ('NLP', 3),
+ ('first', 3),
+ ('BERT', 2),
+ ('GPT-2', 2),
+ ('two', 2),
+ ('2017', 1),
+ ('three', 1),
+ ('XLNet', 1)]
 ```
 
-> How to query questions from a website's text content:
+How to query questions from a website's text content:
 
 ```python
 from pprint import pprint
-question = "What is business property insurance?"
-prediction = qaam.answer(question)
-pprint(prediction)
+
+question = "What is the purpose of Transformers models?"
+answer = qaam.answer(question)
+pprint(answer)
 ...
-{'answer': 'Whether a business owns or leases its space',
- 'context': 'Whether a business owns or leases its space, property insurance '
-            'is a must. Related: Business Interruption Insurance: What It Will '
-            "-- and Won't Unfortunately, homeowner’s policies don’t cover "
-            'home-based businesses in the way commercial property insurance '
-            'does. However, mass-destruction events like floods and '
-            'earthquakes are generally not covered under standard property '
-            'insurance policies.'}
+{'answer': 'to use a set of encodings to incorporate context into a '
+           'sequence.[11]',
+ 'context': 'Pretraining is typically done on a much larger dataset than '
+            'fine-tuning, due to the restricted availability of labeled '
+            'training data. The Transformer is a deep machine learning model '
+            'introduced in 2017, used primarily in the field of natural '
+            'language processing ( So, if the data in question is natural '
+            'language, the Transformer does not need to process the beginning '
+            'of a sentence before it processes the end. ] The purpose of an '
+            'attention mechanism is to use a set of encodings to incorporate '
+            'context into a sequence.[11]',
+ 'end': 522,
+ 'score': 0.4509814318797609,
+ 'start': 454}
 ```
 
-> How does the model improve results better than other more complex methods? Simply, by adjusting the input (question) to the context of it's environment (website's texts). In short, the model will properly accommodate any query to the environment's vocabulary.
+How does the model improve results better than other more complex methods? Simply, by adjusting the input (question) to the context of it's environment (website's texts). In short, the model will properly accommodate any query to the environment's vocabulary.
 
 ```python
-# Let's see how the grammatically incorrect question is fixed.
-question = "Why there's no one-siez-fits-all polucy for a busineses in each industry?"
+question = "why it doesn't need to process the beginning of the sentence?"
 prediction = qaam.answer(question)
-
-# What the QA model actually 'sees'.
-print(qaam.history["spelling"])
+print(prediction["answer"])
 ...
-["Why there's no one-size-fits-all policy for a business in each industry?"]
+'the output sequence must be partially masked to prevent this reverse information flow.[1]'
+```
 
-# What cosine similarly actually 'sees'
-print(qaam.history["query"])
-["Why there 's no one-size-fits-all policy for a business in each industry"]
+## Cosine Similarity
 
-# Since the question was properly encoded and fixed, the predictions improve.
-pprint(prediction)
+Scores based on `TfIdf`
+
+```python
+matrix_a = qaam.to_matrix("context into a sequence")
+matrix_b = qaam.to_matrix("context based on a sequence")
+qaam.cosine_similarity(matrix_a, matrix_b)
+0.75
+```
+
+Scores based on spaCy's `en_core_web_sm` model
+
+```python
+tensor_a = qaam.to_tensor("context into a sequence")
+tensor_b = qaam.to_tensor("context based on a sequence")
+qaam.cosine_similarity(tensor_a, tensor_b)
 ...
-{'answer': 'Each industry has its own set of concerns that will be addressed '
-           'in a customized policy written for a business',
- 'context': 'There is no one-size-fits-all policy for professional liability '
-            'insurance. Each industry has its own set of concerns that will be '
-            'addressed in a customized policy written for a business.'}
+0.8587002754211426
 ```

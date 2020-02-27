@@ -1,11 +1,17 @@
-import requests
-from typing import Dict, Optional, Union, List, Any, TypeVar
-import spacy
-from david import (unicode_to_ascii, normalize_whitespace,
-                   preprocess_sequence, extract_text_from_url,
-                   SimilarDocuments)
+from typing import Any, Dict, List, Optional, TypeVar, Union
 
-Response = TypeVar('Response', object, requests.Response)
+import requests
+import spacy
+
+from david import (
+    SimilarDocuments,
+    extract_text_from_url,
+    normalize_whitespace,
+    preprocess_sequence,
+    unicode_to_ascii,
+)
+
+Response = TypeVar("Response", object, requests.Response)
 
 
 class MAXQAModel(object):
@@ -21,10 +27,11 @@ class MAXQAModel(object):
         self.server_url = server_endpoint.format(url.strip())
 
     def load_context(
-            self,
-            questions: Optional[Union[str, List[str]]],
-            context: Optional[str] = None,
-            response_only: bool = False) -> Union[Response, Dict[str, str]]:
+        self,
+        questions: Optional[Union[str, List[str]]],
+        context: Optional[str] = None,
+        response_only: bool = False,
+    ) -> Union[Response, Dict[str, str]]:
         """Loads the question and context to the MAXQ Server Model.
 
         This method assumes both; the context and server url have been
@@ -48,9 +55,10 @@ class MAXQAModel(object):
         if isinstance(questions, str):
             questions = list(questions)
         context = context if context else self.CONTEXT
-        response = requests.post(self.server_url, json={
-            "paragraphs": [{"context": context, "questions": questions}]
-        })
+        response = requests.post(
+            self.server_url,
+            json={"paragraphs": [{"context": context, "questions": questions}]},
+        )
         if response_only:
             return response
         answer = response.json()
@@ -60,7 +68,6 @@ class MAXQAModel(object):
 
 
 class QAAM(MAXQAModel, SimilarDocuments):
-
     def __init__(self, *args, **kwargs):
         super(QAAM, self).__init__()
         self.top_k = 10
@@ -103,7 +110,7 @@ class QAAM(MAXQAModel, SimilarDocuments):
         context = self._build_paragraph(query)
         response = self.load_context(question, context, response_only=True)
         answer = response.json()
-        if ("ok" in answer.values()):
+        if "ok" in answer.values():
             answer = answer["predictions"][0][0]
         try:
             context = context.replace(answer, f"<Answer( {answer} )>")

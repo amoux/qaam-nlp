@@ -6,15 +6,20 @@ import requests
 import scipy
 import spacy
 from autocorrect import Speller
-from david import (SimilarDocuments, extract_text_from_url,
-                   normalize_whitespace, preprocess_sequence, unicode_to_ascii)
 from nptyping import Array
 
-Response = TypeVar('Response', Callable, requests.Response)
+from david import (
+    SimilarDocuments,
+    extract_text_from_url,
+    normalize_whitespace,
+    preprocess_sequence,
+    unicode_to_ascii,
+)
+
+Response = TypeVar("Response", Callable, requests.Response)
 
 
 class QAAM(SimilarDocuments):
-
     def __init__(self, top_k=10, ngram=(1, 3), feature="tfidf", model="en_core_web_sm"):
         super()
         self.top_k = top_k
@@ -43,8 +48,7 @@ class QAAM(SimilarDocuments):
     def _load_context(self, question: str) -> Tuple[str, str]:
         # fix user's spelling before preprocessing the question.
         question = self.spell(question)
-        query = preprocess_sequence(
-            question, lemmatize=False, rm_stopwords=False)
+        query = preprocess_sequence(question, lemmatize=False, rm_stopwords=False)
         paragraph = self._build_paragraph(query)
         response = self.max_model(question, paragraph)
         answer = response.json()
@@ -86,8 +90,10 @@ class QAAM(SimilarDocuments):
         """
         if isinstance(questions, str):
             questions = [questions]
-        return requests.post(self.server_url, json={
-            "paragraphs": [{"context": context, "questions": questions}]})
+        return requests.post(
+            self.server_url,
+            json={"paragraphs": [{"context": context, "questions": questions}]},
+        )
 
     def texts_from_url(self, url: str) -> None:
         """Extracts all available text from a website.
