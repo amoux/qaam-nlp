@@ -1,8 +1,38 @@
-# qaam (Question Answering Auto Model)
+# QAAM (Question Answering Auto Model)
 
 - **Automatic question answering from any text source**
 
-`qaam` is a question and answering engine for answering questions from any text document or text from a given website URL. The model leverages a fine-tuned model on SQuAD from the `transformers` library. While the context is handled by special tokenization techniques for online text and `Tfidf` vectorization scoring.
+`QAAM` is a question and answering engine for answering questions of any text documents or texts extracted from a website's URL (see below). The model leverages a fine-tuned representation on *SQuAD* from the `Transformers` library while the context treated by proper tokenization techniques for online text.
+
+## Notes
+
+- document similarity experimentation:
+  - fast sequencing intersection via skip-pointers
+
+```python
+def intersect_with_skips(p1, p2):
+  '''
+  doc_id<Dict[int, str]> -> int:
+  has_skip<Callable[bool: Any]> -> bool: For an intermediate result
+    in a complex query, the call has_skip(p) will always return false.
+  '''
+  answer = []
+  while (p1 and p2) is not None:
+    if doc_id(p1) == doc_id(p2):
+      answer.append(doc_id(p1))
+    elif doc_id(p1) < doc_id(p2):
+      if has_skip(p1) and (doc_id(skip(p1)) <= doc_id(p2)):
+        while has_skip(p1) and (doc_id(skip(p1)) <= doc_id(p2)):
+          p1 = skip(p1)
+        else:
+          p1 = next(p1)
+      elif has_skip(p2) and (doc(skip(p2)) <= doc_id(p1)):
+        while has_skip(p2) and (doc_id(skip(p2)) <= doc_id(p1)):
+          p2 = skip(p2)
+        else:
+          p2 = next(p2)
+  return answer
+```
 
 ## Installation
 
@@ -134,7 +164,7 @@ scraper = YTCommentScraper()
 video_url = "https://www.youtube.com/watch?v=EYIKy_FM9x0&t=2189s"
 iterbatch = scraper.scrape_comments(video_url=video_url)
 comments = []   # for this demo we ony get the texts from the comment items
-for comment in tqdm(iterbatch, desc="comments", unit=""):
+for comment in tqdm(interbranch, desc="comments", unit=""):
     comments.append(comment["text"])  # available keys: {text, time, author, cid}
 ...
 comments: 150 [00:08, 17.88/s]
@@ -143,7 +173,7 @@ comments: 150 [00:08, 17.88/s]
 ```python
 # add the comments to the model
 qaam.texts_from_doc(comments)
-qaam.common_enitites(10, lower=True, lemmatize=True)
+qaam.common_entities(10, lower=True, lemmatize=True)
 ...
 [('lex', 13),
  ('jordan', 11),

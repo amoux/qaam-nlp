@@ -1,3 +1,5 @@
+from __future__ import division, print_function, unicode_literals
+
 from typing import List
 
 import cupy
@@ -125,14 +127,13 @@ class QAAM:
 
     def texts_from_doc(self, document: List[str]):
         """Load texts from an iterable list of string sequences."""
-        document = []
+        sentences = []
         for doc in self.nlp_model.pipe(document):
             for sent in doc.sents:
                 text = normalize_whitespace(unicode_to_ascii(sent.text))
-                if text is None:
-                    continue
-                document.append(text)
-        self.document = document
+                if text is not None:
+                    sentences.append(text)
+        self.document = sentences
 
     def common_entities(self, k: int = None, lower=False, lemmatize=False):
         """Return the most common entities from the document."""
