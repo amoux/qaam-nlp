@@ -1,8 +1,22 @@
-# qaam-nlp
+# qaam (Question Answering Auto Model)
 
-`qaam-nlp` is an question and answering api for any text content that can be extracted from the web.
+- **Automatic question answering from any text source**
+
+`qaam` is a question and answering engine for answering questions from any text document or text from a given website URL. The model leverages a fine-tuned model on SQuAD from the `transformers` library. While the context is handled by special tokenization techniques for online text and `Tfidf` vectorization scoring.
 
 ## Installation
+
+- To use the model install the required dependencies:
+
+```bash
+autocorrect==0.4.4
+numpy==1.17.3
+scipy==1.4.1
+cupy==7.0.0
+transformers==2.3.0
+spacy==2.2.3
+david==0.0.1
+```
 
 ```bash
 pip install -r requirements.txt

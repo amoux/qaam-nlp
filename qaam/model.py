@@ -11,7 +11,12 @@ from david.tokenizers import Tokenizer
 
 
 class QAAM:
-    """Question Answering Engine."""
+    """Question Answering Auto Model.
+
+    Question-answering model based on transformers auto models
+    based on the SQuAd dataset. The context is based on tokenization
+    and Tfidf feature extraction techniques.
+    """
 
     def __init__(
         self,
@@ -30,7 +35,7 @@ class QAAM:
         self.vocab_matrix = None
         self._is_enviroment_context_ready = False
 
-    def _build_enviroment_context(self):
+    def _build_context_enviroment(self):
         tokenizer = Tokenizer(document=self.document)
         tokenizer.fit_vocabulary(mincount=1)
         sequences = tokenizer.document_to_sequences(document=self.document)
@@ -65,18 +70,16 @@ class QAAM:
         return paragraph
 
     def _build_answer(self, question: str, top_k: int):
-        # Build the answer and context neeeded to answer that question.
+        # clean and fix spelling (if any) and fetch the top similar to the question.
         question = self.speller(normalize_whitespace(unicode_to_ascii(question)))
         context = self._build_context_paragraph(question, top_k=top_k)
+
         if self.summarize and len(context) >= 100:
             context = text_summarizer(context)
 
         answer = self.qa_model({"question": question, "context": context})
-        if answer:
-            answer["context"] = context
-            return answer
-        else:
-            return {"score": 0.0, "start": 0, "end": 0, "answer": "", "context": ""}
+        answer["context"] = context  # add the context to the answer dict.
+        return answer
 
     def _preprocess_texts(self, texts):
         texts = normalize_whitespace(unicode_to_ascii(texts))
@@ -101,7 +104,7 @@ class QAAM:
         for doc in self.nlp_model.pipe(document):
             for sent in doc.sents:
                 text = normalize_whitespace(unicode_to_ascii(sent.text))
-                if sent is None:
+                if text is None:
                     continue
                 document.append(text)
         self.document = document
@@ -125,7 +128,7 @@ class QAAM:
     def answer(self, question: str, top_k=10):
         """Return an answer based on the question to the text context."""
         if not self._is_enviroment_context_ready:
-            self._build_enviroment_context()
+            self._build_context_enviroment()
         return self._build_answer(question, top_k=top_k)
 
     def to_tensor(self, sequence: str):
