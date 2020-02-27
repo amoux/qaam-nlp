@@ -4,36 +4,6 @@
 
 `QAAM` is a question and answering engine for answering questions of any text documents or texts extracted from a website's URL (see below). The model leverages a fine-tuned representation on *SQuAD* from the `Transformers` library while the context treated by proper tokenization techniques for online text.
 
-## Notes
-
-- document similarity experimentation:
-  - fast sequencing intersection via skip-pointers
-
-```python
-def intersect_with_skips(p1, p2):
-  '''
-  doc_id<Dict[int, str]> -> int:
-  has_skip<Callable[bool: Any]> -> bool: For an intermediate result
-    in a complex query, the call has_skip(p) will always return false.
-  '''
-  answer = []
-  while (p1 and p2) is not None:
-    if doc_id(p1) == doc_id(p2):
-      answer.append(doc_id(p1))
-    elif doc_id(p1) < doc_id(p2):
-      if has_skip(p1) and (doc_id(skip(p1)) <= doc_id(p2)):
-        while has_skip(p1) and (doc_id(skip(p1)) <= doc_id(p2)):
-          p1 = skip(p1)
-        else:
-          p1 = next(p1)
-      elif has_skip(p2) and (doc(skip(p2)) <= doc_id(p1)):
-        while has_skip(p2) and (doc_id(skip(p2)) <= doc_id(p1)):
-          p2 = skip(p2)
-        else:
-          p2 = next(p2)
-  return answer
-```
-
 ## Installation
 
 - To use the model install the required dependencies:
