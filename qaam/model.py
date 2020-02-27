@@ -5,7 +5,8 @@ import numpy as np
 import scipy
 import spacy
 from autocorrect import Speller
-from david.text import extract_text_from_url, normalize_whitespace, unicode_to_ascii
+from david.text import (extract_text_from_url, normalize_whitespace,
+                        unicode_to_ascii)
 from david.text.summarization import summarizer as text_summarizer
 from david.tokenizers import Tokenizer
 from transformers import pipeline
@@ -18,11 +19,21 @@ class QAAM:
         self,
         threshold=0.1,
         summarize=True,
+        lemmatize=True,
         model_name="question-answering",
         spacy_model="en_core_web_sm",
     ):
+        """Initialize a question answering instance.
+
+        `threshold`: The threshold confidence for document similarity.
+        `summarize`: Whether to summarize long phrases (usefull if using high top_K).
+        `lemmatize`: Whether to use lemmatization for the vocabulary (this does not
+            affect the self.document instance property - used only for tokenization).
+            It is recommened to use the default settings for more accurate results.
+        """
         self.threshold = threshold
         self.summarize = summarize
+        self.lemmatize = lemmatize
         self.qa_model = pipeline(model_name)
         self.nlp_model = spacy.load(spacy_model)
         self.tokenizer = None
@@ -31,10 +42,25 @@ class QAAM:
         self.vocab_matrix = None
         self._is_enviroment_vocabulary_ready = False
 
+    def _lemmatize_document(self, document: List[str]) -> List[str]:
+        # used to improve document similarity scores. the tokenizer
+        # uses/maintains the lemmatized tokens internally which means
+        # the self.document property and the model's answers and context
+        # are not returned in lemmatized form.
+        lemma_doc = []
+        for doc in self.nlp_model.pipe(document):
+            sent = " ".join([token.lemma_ for token in doc])
+            lemma_doc.append(sent)
+        return lemma_doc
+
     def _build_enviroment_vocabulary(self):
-        tokenizer = Tokenizer(document=self.document)
+        document = self.document
+        if self.lemmatize:
+            document = self._lemmatize_document(document)
+
+        tokenizer = Tokenizer(document=document)
         tokenizer.fit_vocabulary(mincount=1)
-        sequences = tokenizer.document_to_sequences(document=self.document)
+        sequences = tokenizer.document_to_sequences(document=document)
         self.vocab_matrix = tokenizer.sequences_to_matrix(sequences, "tfidf")
 
         speller = Speller(lang="en")
@@ -47,6 +73,8 @@ class QAAM:
         self._is_enviroment_vocabulary_ready = True
 
     def _build_context_paragraph(self, query: str, top_k: int):
+        if self.lemmatize:
+            query = self._lemmatize_document([query])[0]
         # encode the query as a vector and compute its dot product with the vocab-matrix
         embedd_query = self.tokenizer.convert_string_to_ids(query)
         matrix_query = self.tokenizer.sequences_to_matrix([embedd_query], "tfidf")
@@ -106,10 +134,14 @@ class QAAM:
                 document.append(text)
         self.document = document
 
-    def common_entities(self, top_k: int = None, lower=False):
+    def common_entities(self, k: int = None, lower=False, lemmatize=False):
         """Return the most common entities from the document."""
+        document = self.document
+        if lemmatize:
+            document = self._lemmatize_document(document)
+
         entities = {}
-        for doc in self.nlp_model.pipe(self.document):
+        for doc in self.nlp_model.pipe(document):
             for ent in doc.ents:
                 ent = ent.text if not lower else ent.text.lower()
                 if ent not in entities:
@@ -118,8 +150,8 @@ class QAAM:
                     entities[ent] += 1
 
         entities = sorted(entities.items(), key=lambda k: k[1], reverse=True)
-        if top_k is not None:
-            return entities[:top_k]
+        if k is not None:
+            return entities[:k]
         return entities
 
     def answer(self, question: str, top_k=10):
@@ -149,6 +181,9 @@ class QAAM:
             >>> self.cosine_similarity(matrix_a, matrix_b)
                 1.0
         """
+        if self.lemmatize:
+            sequence = self._lemmatize_document([sequence])[0]
+
         embedd = self.tokenizer.convert_string_to_ids(sequence)
         vector = self.tokenizer.sequences_to_matrix([embedd], mode="tfidf")
         return vector.sum(axis=0)
