@@ -89,6 +89,16 @@ print(prediction["answer"])
 'the output sequence must be partially masked to prevent this reverse information flow.[1]'
 ```
 
+```python
+# the threshold and top_k parameters control how much the model can "see" from all texts
+qaam.answer("what prevents the information flow?", top_k=20)
+...
+{'answer': 'a cell state which only passes through linear operations',
+ 'context': 'LSTMs make use of a cell state which only passes through linear'
+            'operations in the recurrent portion, allowing information to pass'
+            'through relatively unchanged with each iteration.[6]..'}
+```
+
 ## Cosine Similarity
 
 Scores based on `TfIdf`
