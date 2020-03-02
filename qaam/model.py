@@ -4,13 +4,13 @@ from typing import List
 
 import cupy
 import numpy as np
-import scipy
 import spacy
-from autocorrect import Speller
+from david.lang import Speller
 from david.text import (extract_text_from_url, normalize_whitespace,
                         unicode_to_ascii)
 from david.text.summarization import summarizer as text_summarizer
 from david.tokenizers import Tokenizer
+from scipy import spatial
 from transformers import pipeline
 
 
@@ -22,6 +22,7 @@ class QAAM:
         threshold=0.1,
         summarize=True,
         lemmatize=True,
+        metric="cosine",
         model_name="question-answering",
         spacy_model="en_core_web_sm",
     ):
@@ -32,10 +33,12 @@ class QAAM:
         `lemmatize`: Whether to use lemmatization for the vocabulary (this does not
             affect the self.document instance property - used only for tokenization).
             It is recommened to use the default settings for more accurate results.
+        `metric`: The distance metric to use for building the context.
         """
         self.threshold = threshold
         self.summarize = summarize
         self.lemmatize = lemmatize
+        self.metric = metric
         self.qa_model = pipeline(model_name)
         self.nlp_model = spacy.load(spacy_model)
         self.tokenizer = None
@@ -57,56 +60,64 @@ class QAAM:
 
     def _build_enviroment_vocabulary(self):
         document = self.document
+        # speller instance does not use the lemmatized form of the document.
+        self.speller = Speller(document=document)
+
         if self.lemmatize:
             document = self._lemmatize_document(document)
 
+        # setup the tokenizer and the vocabulary
         tokenizer = Tokenizer(document=document)
         tokenizer.fit_vocabulary(mincount=1)
         sequences = tokenizer.document_to_sequences(document=document)
         self.vocab_matrix = tokenizer.sequences_to_matrix(sequences, "tfidf")
-
-        speller = Speller(lang="en")
-        for token, count in tokenizer.index_vocab.items():
-            if token not in speller.nlp_data:
-                speller.nlp_data[token] = count
-
         self.tokenizer = tokenizer
-        self.speller = speller
         self._is_enviroment_vocabulary_ready = True
 
-    def _build_context_paragraph(self, query: str, top_k: int):
+    def similar_documents(self, query: str, top_k: int, return_score=True):
+        """Compute distance between each pair of the two collections of inputs."""
         if self.lemmatize:
             query = self._lemmatize_document([query])[0]
-        # encode the query as a vector and compute its dot product with the vocab-matrix
-        embedd_query = self.tokenizer.convert_string_to_ids(query)
-        matrix_query = self.tokenizer.sequences_to_matrix([embedd_query], "tfidf")
 
-        matrix = self.vocab_matrix
-        score = np.sum(matrix * matrix_query, axis=1) / np.linalg.norm(matrix, axis=1)
-        top_indices = np.argsort(score)[::-1][:top_k]
+        query_sequence = self.tokenizer.convert_string_to_ids(query)
+        query_matrix = self.tokenizer.sequences_to_matrix([query_sequence], "tfidf")
+        vocab_matrix = self.vocab_matrix
 
-        sim_doc = []
-        for index in top_indices:
-            k = score[index]
-            if k >= self.threshold:
-                text = self.document[index]
-                sim_doc.append(text)
+        similar = []
+        for q, qx in zip([query], query_matrix):
+            distances = spatial.distance.cdist([qx], vocab_matrix, self.metric)
+            distances = zip(range(len(distances[0])), distances[0])
+            distances = sorted(distances, key=lambda k: k[1])
+            for index, distance in distances[0:top_k]:
+                k = 1 - distance
+                if k >= self.threshold:
+                    doc = self.document[index]
+                    if return_score:
+                        similar.append((doc, k))
+                    else:
+                        similar.append(doc)
 
-        sim_texts = " ".join(sim_doc)
-        paragraph = sim_texts.replace("\n\n", " ").replace("\n", " ").strip()
-        return paragraph
+        return similar
 
     def _build_answer(self, question: str, top_k: int):
-        # clean and fix spelling (if any) and fetch the top similar to the question.
-        question = self.speller(normalize_whitespace(unicode_to_ascii(question)))
-        context = self._build_context_paragraph(question, top_k=top_k)
+        # fix (if needed) the question's grammar in relation to the context
+        question = self.speller.correct_string(question)
 
-        if self.summarize and len(context) >= 100:
+        # convert the question to query form and build the context
+        query = " ".join(self.speller.tokenize(question))
+        documents = self.similar_documents(query, top_k, return_score=False)
+        paragraph = " ".join(documents)
+        context = paragraph.replace("\n\n", " ").replace("\n", " ").strip()
+
+        # summarize the context if larger than N characters (including spaces)
+        if self.summarize and len(context) >= 80:
             context = text_summarizer(context)
 
-        answer = self.qa_model({"question": question, "context": context})
-        answer["context"] = context  # add the context to the answer dict.
-        return answer
+        # pass the corrected question and the context to the Transformers model
+        prediction = self.qa_model({"question": question, "context": context})
+        prediction["context"] = context
+        prediction["question"] = question
+        return prediction
 
     def _preprocess_texts(self, texts: str):
         texts = normalize_whitespace(unicode_to_ascii(texts))
@@ -194,4 +205,4 @@ class QAAM:
 
         arrays can be obtained from either `self.to_matrix` or `self.to_tensor`
         """
-        return 1 - scipy.spatial.distance.cosine(array_a, array_b)
+        return 1 - spatial.distance.cosine(array_a, array_b)

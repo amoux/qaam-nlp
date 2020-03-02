@@ -1,7 +1,6 @@
-autocorrect==0.4.4
+david==0.0.1
 numpy==1.17.3
-scipy==1.4.1
-cupy==7.0.0
 transformers==2.3.0
 spacy==2.2.3
-david==0.0.1
+scipy==1.4.1
+cupy==7.0.0
