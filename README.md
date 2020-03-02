@@ -9,7 +9,6 @@
 - To use the model install the required dependencies:
 
 ```bash
-autocorrect==0.4.4
 numpy==1.17.3
 scipy==1.4.1
 cupy==7.0.0
@@ -37,21 +36,21 @@ Extract text content from a website's blog or article:
 ```python
 from qaam import QAAM
 
-qaam = QAAM(threshold=0.2, summarize=True)
-wiki_url = "https://en.wikipedia.org/wiki/Transformer_(machine_learning_model)"
+qaam = QAAM(0.2, mode='tfidf', metric='cosine')
+blog_url = "https://medium.com/analytics-vidhya/semantic-similarity-in-sentences-and-bert-e8d34f5a4677"
 qaam.texts_from_url(wiki_url) # texts are processed automatically
-qaam.common_entities(top_k=10)
+qaam.common_entities(10, lower=True, lemma=True)
 ...
-[('Transformer', 6),
- ('Transformers', 5),
- ('NLP', 3),
- ('first', 3),
- ('BERT', 2),
- ('GPT-2', 2),
- ('two', 2),
- ('2017', 1),
- ('three', 1),
- ('XLNet', 1)]
+[('bert', 14),
+ ('nlp', 8),
+ ('two', 5),
+ ('google', 3),
+ ('one', 3),
+ ('2018', 2),
+ ('glove', 2),
+ ('universal sentence encoder', 2),
+ ('1', 2),
+ ('2', 2)]
 ```
 
 How to query questions from a website's text content:
@@ -59,44 +58,82 @@ How to query questions from a website's text content:
 ```python
 from pprint import pprint
 
-question = "What is the purpose of Transformers models?"
-answer = qaam.answer(question)
-pprint(answer)
-...
-{'answer': 'to use a set of encodings to incorporate context into a '
-           'sequence.[11]',
- 'context': 'Pretraining is typically done on a much larger dataset than '
-            'fine-tuning, due to the restricted availability of labeled '
-            'training data. The Transformer is a deep machine learning model '
-            'introduced in 2017, used primarily in the field of natural '
-            'language processing ( So, if the data in question is natural '
-            'language, the Transformer does not need to process the beginning '
-            'of a sentence before it processes the end. ] The purpose of an '
-            'attention mechanism is to use a set of encodings to incorporate '
-            'context into a sequence.[11]',
- 'end': 522,
- 'score': 0.4509814318797609,
- 'start': 454}
-```
-
-How does the model improve results better than other more complex methods? Simply, by adjusting the input (question) to the context of it's environment (website's texts). In short, the model will properly accommodate any query to the environment's vocabulary.
-
-```python
-question = "why it doesn't need to process the beginning of the sentence?"
+question = "Why is it good to use pre-trained sentence encoders?"
 prediction = qaam.answer(question)
-print(prediction["answer"])
+pprint(prediction)
 ...
-'the output sequence must be partially masked to prevent this reverse information flow.[1]'
+# predicted answer
+{'answer': 'it takes much less time to train a fine-tuned model.',
+# cosine-similary context
+ 'context': 'Using minimal task-specific fine-tuning efforts, researchers have '
+            'been able to surpass multiple benchmarks by leveraging '
+            'pre-trained models that can easily be implemented to produce '
+            'state of the art results. It soon became common practice to '
+            'download a pre-trained deep network and quickly retrain it or add '
+            'additional layers on top for the new task. Pre-trained sentence '
+            'encoders aim to play the same role as word2vec and GloVe play for '
+            'words. Consequently, it takes much less time to train a '
+            'fine-tuned model. Note that you will have to choose the correct '
+            'path and pre-trained model name for BERT 3. It is therefore '
+            'referred to as Multi-head Attention.',
+ 'end': 511,
+# fetched input query/question
+ 'question': 'Why is it good to use pre-trained sentence encoders?',
+ 'score': 0.317362858170501,
+ 'start': 459}
 ```
 
+How does a query fetch results better than other more complex methods? Simply, by adjusting the input (question) to the context of it's environment (texts). In short, qaam properly accommodates the input query to the environment's vocabulary to fetch the best output.
+
+- In the query below, the question/query outputs the same result as above - regardless of incorrect spelling or grammar.
+
 ```python
-# the threshold and top_k parameters control how much the model can "see" from all texts
-qaam.answer("what prevents the information flow?", top_k=20)
+question = "Why is it food to use pre-trained sentencr encoters?"
+prediction = qaam.answer(question)
+pprint(prediction)
 ...
-{'answer': 'a cell state which only passes through linear operations',
- 'context': 'LSTMs make use of a cell state which only passes through linear'
-            'operations in the recurrent portion, allowing information to pass'
-            'through relatively unchanged with each iteration.[6]..'}
+{'answer': 'it takes much less time to train a fine-tuned model.', # predicted answer
+ 'context': 'Using minimal task-specific fine-tuning efforts, researchers have '
+            'been able to surpass multiple benchmarks by leveraging '
+            'pre-trained models that can easily be implemented to produce '
+            'state of the art results. It soon became common practice to '
+            'download a pre-trained deep network and quickly retrain it or add '
+            'additional layers on top for the new task. Pre-trained sentence '
+            'encoders aim to play the same role as word2vec and GloVe play for '
+            'words. Consequently, it takes much less time to train a '
+            'fine-tuned model. Note that you will have to choose the correct '
+            'path and pre-trained model name for BERT 3. It is therefore '
+            'referred to as Multi-head Attention.',
+ 'end': 511,
+ 'question': 'Why is it good to use pre-trained sentence encoders?',  # adjusted input
+ 'score': 0.317362858170501,
+ 'start': 459}
+```
+
+- Here is another example of correcting the input before computing **cosine-distance** and passing the question to the **Transformers** question-answering model.
+
+```python
+prediction = qaam.answer("How was BERTO trained?")
+pprint(prediction)
+...
+{'answer': 'on the Wiki corpus,',  # predicted answer
+ 'context': 'Like all models, BERT is not the perfect solution that fits all '
+            'problem areas and multiple models may need to be evaluated for '
+            'performance depending on the task. Pre-trained representations '
+            'can either be context-free or contextual, and contextual '
+            'representations can further be unidirectional or bidirectional. '
+            'However, there are easy wrapper services and implementations like '
+            'the popular bert-as-a-service that can be used to that effect. In '
+            'the case of BERT, having been trained on the Wiki corpus, the '
+            'pre-trained model weights already encode a lot of information '
+            'about our language. However, BERT represents “train” using both '
+            'its previous and next context — This is a simple example of the '
+            'popular bert-as-a-service. Therefore, BERT embeddings cannot be '
+            'used directly to apply cosine distance to measure similarity.',
+ 'end': 500,
+ 'question': 'How was BERT trained?', # adjusted input
+ 'score': 0.5697720375227675,
+ 'start': 481}
 ```
 
 ## Cosine Similarity
@@ -130,12 +167,11 @@ from david.youtube import YTCommentScraper
 
 qaam = QAAM()
 scraper = YTCommentScraper()
-
 video_url = "https://www.youtube.com/watch?v=EYIKy_FM9x0&t=2189s"
 iterbatch = scraper.scrape_comments(video_url=video_url)
-comments = []   # for this demo we ony get the texts from the comment items
-for comment in tqdm(interbranch, desc="comments", unit=""):
-    comments.append(comment["text"])  # available keys: {text, time, author, cid}
+
+# available keys: {text, time, author, cid}
+comments = [comment["text"] for comment in iterbatch]
 ...
 comments: 150 [00:08, 17.88/s]
 ```
@@ -143,7 +179,7 @@ comments: 150 [00:08, 17.88/s]
 ```python
 # add the comments to the model
 qaam.texts_from_doc(comments)
-qaam.common_entities(10, lower=True, lemmatize=True)
+qaam.common_entities(10, lower=True, lemma=True)
 ...
 [('lex', 13),
  ('jordan', 11),
@@ -158,7 +194,6 @@ qaam.common_entities(10, lower=True, lemmatize=True)
 ```
 
 ```python
-from pprint import pprint
 pprint(qaam.answer("What is an interesting topic of the video?"))
 ...
   Converting examples to features: 100%|██████████| 1/1 [00:00<00:00, 145.69it/s]

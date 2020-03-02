@@ -9,7 +9,8 @@ import numpy as np
 import spacy
 from david.lang import Speller
 from david.lang.en_lexicon import DAVID_STOP_WORDS
-from david.text import extract_text_from_url, normalize_whitespace, unicode_to_ascii
+from david.text import (extract_text_from_url, normalize_whitespace,
+                        unicode_to_ascii)
 from david.text.summarization import summarizer as text_summarizer
 from david.tokenizers import Tokenizer
 from scipy import spatial
@@ -35,6 +36,7 @@ class QAAM:
         threshold=0.1,
         summarize=True,
         lemmatize=True,
+        mode="tfidf",
         metric="cosine",
         model_name="question-answering",
         spacy_model="en_core_web_sm",
@@ -51,6 +53,7 @@ class QAAM:
         self.threshold = threshold
         self.summarize = summarize
         self.lemmatize = lemmatize
+        self.mode = mode
         self.metric = metric
         self.qa_model = pipeline(model_name)
         self.nlp_model = spacy.load(spacy_model)
@@ -93,7 +96,7 @@ class QAAM:
         tokenizer.fit_vocabulary(mincount=1)
         sequences = tokenizer.document_to_sequences(document=document)
 
-        self.vocab_matrix = tokenizer.sequences_to_matrix(sequences, "tfidf")
+        self.vocab_matrix = tokenizer.sequences_to_matrix(sequences, self.mode)
         self.tokenizer = tokenizer
         self.speller = speller
         self._is_enviroment_vocabulary_ready = True
@@ -104,7 +107,7 @@ class QAAM:
             query = self._lemmatize_document([query])[0]
 
         query_sequence = self.tokenizer.convert_string_to_ids(query)
-        query_matrix = self.tokenizer.sequences_to_matrix([query_sequence], "tfidf")
+        query_matrix = self.tokenizer.sequences_to_matrix([query_sequence], self.mode)
 
         similar: List[Union[Tuple[str, float], str]] = []
         for q, qx in zip([query], query_matrix):
@@ -225,7 +228,7 @@ class QAAM:
             sequence = self._lemmatize_document([sequence])[0]
 
         embedd = self.tokenizer.convert_string_to_ids(sequence)
-        vector = self.tokenizer.sequences_to_matrix([embedd], mode="tfidf")
+        vector = self.tokenizer.sequences_to_matrix([embedd], self.mode)
         return vector.sum(axis=0)
 
     def cosine_similarity(self, array_a, array_b):
