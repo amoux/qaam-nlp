@@ -1,17 +1,30 @@
-from __future__ import division, print_function, unicode_literals
+# -*- coding: utf-8 -*-
 
-from typing import List
+from __future__ import division, unicode_literals
+
+from typing import Dict, List, NamedTuple, Tuple, Union
 
 import cupy
 import numpy as np
 import spacy
 from david.lang import Speller
-from david.text import (extract_text_from_url, normalize_whitespace,
-                        unicode_to_ascii)
+from david.lang.en_lexicon import DAVID_STOP_WORDS
+from david.text import extract_text_from_url, normalize_whitespace, unicode_to_ascii
 from david.text.summarization import summarizer as text_summarizer
 from david.tokenizers import Tokenizer
 from scipy import spatial
 from transformers import pipeline
+
+
+class AutoModelPrediction(NamedTuple):
+    """Dictionary with the model's prediction."""
+
+    answer: str
+    context: str
+    score: float
+    start: int
+    end: int
+    question: str
 
 
 class QAAM:
@@ -43,7 +56,7 @@ class QAAM:
         self.nlp_model = spacy.load(spacy_model)
         self.tokenizer = None
         self.speller = None
-        self.document = None
+        self.document: List[str] = []
         self.vocab_matrix = None
         self._is_enviroment_vocabulary_ready = False
 
@@ -59,9 +72,18 @@ class QAAM:
         return lemma_doc
 
     def _build_enviroment_vocabulary(self):
+        # create an instance of the document's vocabulary.
         document = self.document
-        # speller instance does not use the lemmatized form of the document.
-        self.speller = Speller(document=document)
+
+        # construct a speller with the document instance
+        # adding missing stop-words for spell correction
+        speller = Speller(document=document)
+        for word in set(DAVID_STOP_WORDS):
+            word = word.lower()
+            if len(word) > 3 and word not in speller.word_count:
+                speller.word_count[word] = 1
+            else:
+                speller.word_count[word] += 1
 
         if self.lemmatize:
             document = self._lemmatize_document(document)
@@ -70,8 +92,10 @@ class QAAM:
         tokenizer = Tokenizer(document=document)
         tokenizer.fit_vocabulary(mincount=1)
         sequences = tokenizer.document_to_sequences(document=document)
+
         self.vocab_matrix = tokenizer.sequences_to_matrix(sequences, "tfidf")
         self.tokenizer = tokenizer
+        self.speller = speller
         self._is_enviroment_vocabulary_ready = True
 
     def similar_documents(self, query: str, top_k: int, return_score=True):
@@ -81,11 +105,10 @@ class QAAM:
 
         query_sequence = self.tokenizer.convert_string_to_ids(query)
         query_matrix = self.tokenizer.sequences_to_matrix([query_sequence], "tfidf")
-        vocab_matrix = self.vocab_matrix
 
-        similar = []
+        similar: List[Union[Tuple[str, float], str]] = []
         for q, qx in zip([query], query_matrix):
-            distances = spatial.distance.cdist([qx], vocab_matrix, self.metric)
+            distances = spatial.distance.cdist([qx], self.vocab_matrix, self.metric)
             distances = zip(range(len(distances[0])), distances[0])
             distances = sorted(distances, key=lambda k: k[1])
             for index, distance in distances[0:top_k]:
@@ -99,7 +122,7 @@ class QAAM:
 
         return similar
 
-    def _build_answer(self, question: str, top_k: int):
+    def _build_answer(self, question: str, top_k: int) -> AutoModelPrediction:
         # fix (if needed) the question's grammar in relation to the context
         question = self.speller.correct_string(question)
 
@@ -126,7 +149,9 @@ class QAAM:
         for sent in doc.sents:
             if sent.text is not None:
                 document.append(sent.text)
+
         self.document = document
+        self._is_enviroment_vocabulary_ready = False
 
     def texts_from_url(self, url: str):
         """Extract texts from an URL link."""
@@ -144,35 +169,38 @@ class QAAM:
                 text = normalize_whitespace(unicode_to_ascii(sent.text))
                 if text is not None:
                     sentences.append(text)
-        self.document = sentences
 
-    def common_entities(self, k: int = None, lower=False, lemmatize=False):
+        self.document = sentences
+        self._is_enviroment_vocabulary_ready = False
+
+    def common_entities(
+        self, k: int = None, lower=False, lemma=False) -> List[Tuple[str, int]]:
         """Return the most common entities from the document."""
         document = self.document
-        if lemmatize:
+        if lemma:
             document = self._lemmatize_document(document)
 
-        entities = {}
+        common: Dict[str, int] = {}
         for doc in self.nlp_model.pipe(document):
             for ent in doc.ents:
                 ent = ent.text if not lower else ent.text.lower()
-                if ent not in entities:
-                    entities[ent] = 1
+                if ent not in common:
+                    common[ent] = 1
                 else:
-                    entities[ent] += 1
+                    common[ent] += 1
 
-        entities = sorted(entities.items(), key=lambda k: k[1], reverse=True)
+        entities = sorted(common.items(), key=lambda k: k[1], reverse=True)
         if k is not None:
             return entities[:k]
         return entities
 
-    def answer(self, question: str, top_k=10):
+    def answer(self, question: str, top_k=10) -> AutoModelPrediction:
         """Return an answer based on the question to the text context."""
         if not self._is_enviroment_vocabulary_ready:
             self._build_enviroment_vocabulary()
         return self._build_answer(question, top_k=top_k)
 
-    def to_tensor(self, sequence: str):
+    def to_tensor(self, sequence: str) -> float:
         """Convert a string sequence to a tensor based on spaCy's nlp model vocab.
 
         Usage:
@@ -184,7 +212,7 @@ class QAAM:
         tensor = self.nlp_model(sequence).tensor.sum(axis=0)
         return cupy.asnumpy(tensor)
 
-    def to_matrix(self, sequence: str):
+    def to_matrix(self, sequence: str) -> float:
         """Convert a string sequence to a matrix based on the vocab from the context.
         
         Usage:
