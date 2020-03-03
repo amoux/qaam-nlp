@@ -58,7 +58,7 @@ def render_prediction(prediction: AutoModelPrediction, jupyter=True, return_html
         }
     ]
     if return_html:
-        return displacy.render(doc, "ent", False, False, jupyter, options, True)
+        return displacy.render(doc, "ent", jupyter=False, options=options, manual=True)
     else:
         displacy.render(doc, "ent", False, True, jupyter, options, True)
 
@@ -226,7 +226,8 @@ class QAAM:
         self._is_enviroment_vocabulary_ready = False
 
     def common_entities(
-        self, k: int = None, lower=False, lemma=False) -> List[Tuple[str, int]]:
+        self, k: int = None, lower=False, lemma=False
+    ) -> List[Tuple[str, int]]:
         """Return the most common entities from the document."""
         document = self.document
         if lemma:
