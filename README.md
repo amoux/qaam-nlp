@@ -86,9 +86,11 @@ pprint(prediction)
  'start': 459}
 ```
 
-How does the `input-to-context-adjustment` technique yields faster and more accurate results from more complex methods? In short, `qaam` appropriately adjusts (fits) the input query to the environment's vocabulary.
+> How does the `input-to-context-adjustment` technique yields faster and more accurate results from more complex methods? In short, `qaam` appropriately adjusts (fits) the input query to the environment's vocabulary.
 
-- In the query below, the output remains equivalent to the result above - regardless of incorrect spelling or grammar. Therefore, the adjustment is executed before computing the ***cosine-distance metric** and transferring the question to the ***Transformers Auto-Model*** for question-answering.
+In the query below, the output remains equivalent to the result above - regardless of incorrect spelling or grammar. Therefore, the adjustment is executed before computing the ***cosine-distance metric*** and transferring the question to the ***Transformers Auto-Model*** for question-answering.
+
+A word like `food` is correct, but it is not correct in terms of the document's context. So the word is automatically adjusted to the most likely intention based on the surrounding words.
 
 ```python
 question = "Why is it food to use pre-trained sentencr encoters?"
@@ -113,7 +115,7 @@ pprint(prediction)
  'start': 459}
 ```
 
-- A word like `food` is correct, but it is not correct in terms of the document's context. So the word is automatically adjusted to the most likely intention based on the surrounding words.
+- Here `BERTO` is adjusted to correct context-term: `BERT`.
 
 ```python
 prediction = qaam.answer("How was BERTO trained?")
