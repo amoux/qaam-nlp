@@ -88,7 +88,7 @@ pprint(prediction)
 
 > How does the `input-to-context-adjustment` technique yields faster and more accurate results from more complex methods? In short, `qaam` appropriately adjusts (fits) the input query to the environment's vocabulary.
 
-In the query below, the output remains equivalent to the result above - regardless of incorrect spelling or grammar. Therefore, the adjustment is executed before computing the ***cosine-distance metric*** and transferring the question to the ***Transformers Auto-Model*** for question-answering.
+In the query below, the output remains equivalent to the result above - regardless of incorrect spelling or grammar. Therefore, the adjustment is executed before computing the ***cosine-distance metric*** (to build the context) and transferring the question to the ***Transformers Auto-Model*** for question-answering.
 
 A word like `food` is correct, but it is not correct in terms of the document's context. So the word is automatically adjusted to the most likely intention based on the surrounding words.
 
