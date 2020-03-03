@@ -35,10 +35,12 @@ Extract text content from a website's blog or article:
 
 ```python
 from qaam import QAAM
-
 qaam = QAAM(0.2, mode='tfidf', metric='cosine')
-blog_url = "https://medium.com/analytics-vidhya/semantic-similarity-in-sentences-and-bert-e8d34f5a4677"
-qaam.texts_from_url(wiki_url) # texts are processed automatically
+
+blog_url = ("https://medium.com/analytics-vidhya/semantic-"
+            "similarity-in-sentences-and-bert-e8d34f5a4677")
+# texts are processed automatically
+qaam.texts_from_url(blog_url)
 qaam.common_entities(10, lower=True, lemma=True)
 ...
 [('bert', 14),
@@ -83,9 +85,9 @@ pprint(prediction)
  'start': 459}
 ```
 
-How does a query fetch results better than other more complex methods? Simply, by adjusting the input (question) to the context of it's environment (texts). In short, qaam properly accommodates the input query to the environment's vocabulary to fetch the best output.
+How does the `input to context-adjustment first technique` yields faster and more accurate results from more complex methods? In short, qaam appropriately adjusts (fits) the input query to the environment's vocabulary.
 
-- In the query below, the question/query outputs the same result as above - regardless of incorrect spelling or grammar.
+- In the query below, the output remains equivalent to the result as above - regardless of incorrect spelling or grammar.
 
 ```python
 question = "Why is it food to use pre-trained sentencr encoters?"
