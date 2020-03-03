@@ -58,7 +58,7 @@ def render_prediction(prediction: AutoModelPrediction, jupyter=True, return_html
         }
     ]
     if return_html:
-        return displacy(doc, "ent", False, False, jupyter, options, True)
+        return displacy.render(doc, "ent", False, False, jupyter, options, True)
     else:
         displacy.render(doc, "ent", False, True, jupyter, options, True)
 
