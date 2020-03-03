@@ -14,6 +14,7 @@ from david.text import (extract_text_from_url, normalize_whitespace,
 from david.text.summarization import summarizer as text_summarizer
 from david.tokenizers import Tokenizer
 from scipy import spatial
+from spacy import displacy
 from transformers import pipeline
 
 
@@ -28,14 +29,52 @@ class AutoModelPrediction(NamedTuple):
     question: str
 
 
+def render_prediction(prediction: AutoModelPrediction, jupyter=True, return_html=False):
+    """Render QAAM's prediction output from `self.answer()` with spaCy's displacy method.
+
+    `jupyter`: Render the prediction in a jupyter enviroment.
+    `return_html`: Return a html object, the prediction wont be rendered.
+    """
+    colors = {"ANSWER": "linear-gradient(90deg, #aa9cfc, #fc9ce7)"}
+    options = {
+        "compact": True,
+        "bg": "#ed7118",
+        "ents": ["ANSWER"],
+        "colors": colors,
+    }
+    context = normalize_whitespace(prediction["context"])
+    context = context[0].capitalize() + context[1:] + "."
+    doc = [
+        {
+            "text": context,
+            "ents": [
+                {
+                    "start": prediction["start"],
+                    "end": prediction["end"],
+                    "label": "ANSWER",
+                }
+            ],
+            "title": f"Question: {prediction['question']}",
+        }
+    ]
+    if return_html:
+        return displacy(doc, "ent", False, False, jupyter, options, True)
+    else:
+        displacy.render(doc, "ent", False, True, jupyter, options, True)
+
+
 class QAAM:
     """Question Answering Auto Model."""
 
     def __init__(
         self,
         threshold=0.1,
+        top_k=10,
         summarize=True,
         lemmatize=True,
+        remove_urls=True,
+        strip_handles=True,
+        reduce_length=True,
         mode="tfidf",
         metric="cosine",
         model_name="question-answering",
@@ -44,15 +83,23 @@ class QAAM:
         """Initialize a question answering instance.
 
         `threshold`: The threshold confidence for document similarity.
+        `top_k`: Set a maximum number of similar documents to add to the context. 
         `summarize`: Whether to summarize long phrases (usefull if using high top_K).
         `lemmatize`: Whether to use lemmatization for the vocabulary (this does not
             affect the self.document instance property - used only for tokenization).
             It is recommened to use the default settings for more accurate results.
         `metric`: The distance metric to use for building the context.
+        `remove_urls`: Remove Urls from the vocabulary (if any).
+        `strip_handles`: Remove user handles from the vocabulary (if any).
+        `reduce_length`: Attemps to reduce repeated characters from words (if any).
         """
         self.threshold = threshold
+        self.top_k = top_k
         self.summarize = summarize
         self.lemmatize = lemmatize
+        self.remove_urls = remove_urls
+        self.strip_handles = strip_handles
+        self.reduce_length = reduce_length
         self.mode = mode
         self.metric = metric
         self.qa_model = pipeline(model_name)
@@ -64,10 +111,8 @@ class QAAM:
         self._is_enviroment_vocabulary_ready = False
 
     def _lemmatize_document(self, document: List[str]) -> List[str]:
-        # used to improve document similarity scores. the tokenizer
-        # uses/maintains the lemmatized tokens internally which means
-        # the self.document property and the model's answers and context
-        # are not returned in lemmatized form.
+        # This method is used to improve document similarity.
+        # the tokenizer holds the lemmatized tokens internally.
         lemma_doc = []
         for doc in self.nlp_model.pipe(document):
             sent = " ".join([token.lemma_ for token in doc])
@@ -75,11 +120,10 @@ class QAAM:
         return lemma_doc
 
     def _build_enviroment_vocabulary(self):
-        # create an instance of the document's vocabulary.
         document = self.document
 
         # construct a speller with the document instance
-        # adding missing stop-words for spell correction
+        # add any missing stop-words for spell correction
         speller = Speller(document=document)
         for word in set(DAVID_STOP_WORDS):
             word = word.lower()
@@ -92,9 +136,15 @@ class QAAM:
             document = self._lemmatize_document(document)
 
         # setup the tokenizer and the vocabulary
-        tokenizer = Tokenizer(document=document)
+        kwargs = {}
+        for key, value in self.__dict__.items():
+            if key in Tokenizer().__dict__.keys():
+                kwargs[key] = value
+
+        tokenizer = Tokenizer(**kwargs)
+        tokenizer.fit_on_document(document=document)
         tokenizer.fit_vocabulary(mincount=1)
-        sequences = tokenizer.document_to_sequences(document=document)
+        sequences = tokenizer.document_to_sequences(document)
 
         self.vocab_matrix = tokenizer.sequences_to_matrix(sequences, self.mode)
         self.tokenizer = tokenizer
@@ -122,7 +172,6 @@ class QAAM:
                         similar.append((doc, k))
                     else:
                         similar.append(doc)
-
         return similar
 
     def _build_answer(self, question: str, top_k: int) -> AutoModelPrediction:
@@ -197,11 +246,16 @@ class QAAM:
             return entities[:k]
         return entities
 
-    def answer(self, question: str, top_k=10) -> AutoModelPrediction:
+    def answer(self, question: str, k: int = None, render=False) -> AutoModelPrediction:
         """Return an answer based on the question to the text context."""
         if not self._is_enviroment_vocabulary_ready:
             self._build_enviroment_vocabulary()
-        return self._build_answer(question, top_k=top_k)
+
+        prediction = self._build_answer(question, k if k is not None else self.top_k)
+        if render:
+            render_prediction(prediction)
+        else:
+            return prediction
 
     def to_tensor(self, sequence: str) -> float:
         """Convert a string sequence to a tensor based on spaCy's nlp model vocab.
