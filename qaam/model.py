@@ -40,6 +40,7 @@ def render_prediction(prediction: AutoModelPrediction, jupyter=True, return_html
         "compact": True,
         "bg": "#ed7118",
         "ents": ["ANSWER"],
+        "color": '#000000',
         "colors": colors,
     }
     context = normalize_whitespace(prediction["context"])
