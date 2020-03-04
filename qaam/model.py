@@ -43,11 +43,9 @@ def render_prediction(prediction: AutoModelPrediction, jupyter=True, return_html
         "color": '#000000',
         "colors": colors,
     }
-    context = normalize_whitespace(prediction["context"])
-    context = context[0].capitalize() + context[1:] + "."
     doc = [
         {
-            "text": context,
+            "text": prediction["context"],
             "ents": [
                 {
                     "start": prediction["start"],
@@ -123,7 +121,6 @@ class QAAM:
     def _build_enviroment_vocabulary(self):
         document = self.document
 
-        # construct a speller with the document instance
         # add any missing stop-words for spell correction
         speller = Speller(document=document)
         for word in set(DAVID_STOP_WORDS):
@@ -133,10 +130,10 @@ class QAAM:
             else:
                 speller.word_count[word] += 1
 
+        # setup the tokenizer and the vocabulary
         if self.lemmatize:
             document = self._lemmatize_document(document)
 
-        # setup the tokenizer and the vocabulary
         kwargs = {}
         for key, value in self.__dict__.items():
             if key in Tokenizer().__dict__.keys():
@@ -176,16 +173,20 @@ class QAAM:
         return similar
 
     def _build_answer(self, question: str, top_k: int) -> AutoModelPrediction:
-        # fix (if needed) the question's grammar in relation to the context
+        # correct the question to the context (if neeeded)
         question = self.speller.correct_string(question)
 
         # convert the question to query form and build the context
         query = " ".join(self.speller.tokenize(question))
         documents = self.similar_documents(query, top_k, return_score=False)
         paragraph = " ".join(documents)
-        context = paragraph.replace("\n\n", " ").replace("\n", " ").strip()
 
-        # summarize the context if larger than N characters (including spaces)
+        # proper cleaning before passing the context is important
+        # the following steps work for multiple variations of text
+        context = paragraph.replace("\n\n", "\n").replace("\n", " ")
+        context = normalize_whitespace(context.strip())
+
+        # summarize the context if larger than 80 characters
         if self.summarize and len(context) >= 80:
             context = text_summarizer(context)
 
@@ -227,8 +228,7 @@ class QAAM:
         self._is_enviroment_vocabulary_ready = False
 
     def common_entities(
-        self, k: int = None, lower=False, lemma=False
-    ) -> List[Tuple[str, int]]:
+        self, k: int = None, lower=False, lemma=False) -> List[Tuple[str, int]]:
         """Return the most common entities from the document."""
         document = self.document
         if lemma:
