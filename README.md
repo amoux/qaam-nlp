@@ -4,6 +4,8 @@
 
 `QAAM` is a question and answering engine for answering questions of any text documents or texts extracted from a website's URL (see below). The model leverages a fine-tuned representation on *SQuAD* from the `Transformers` library while the context treated by proper tokenization techniques for online text.
 
+<img src="src/pred2.png" />
+
 ## Installation
 
 - To use the model install the required dependencies:
