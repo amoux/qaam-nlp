@@ -120,7 +120,6 @@ class QAAM:
 
     def _build_enviroment_vocabulary(self):
         document = self.document
-
         # add any missing stop-words for spell correction
         speller = Speller(document=document)
         for word in set(DAVID_STOP_WORDS):
@@ -130,7 +129,6 @@ class QAAM:
             else:
                 speller.word_count[word] += 1
 
-        # setup the tokenizer and the vocabulary
         if self.lemmatize:
             document = self._lemmatize_document(document)
 
@@ -153,11 +151,10 @@ class QAAM:
         """Compute distance between each pair of the two collections of inputs."""
         if self.lemmatize:
             query = self._lemmatize_document([query])[0]
-
         query_sequence = self.tokenizer.convert_string_to_ids(query)
         query_matrix = self.tokenizer.sequences_to_matrix([query_sequence], self.mode)
 
-        similar: List[Union[Tuple[str, float], str]] = []
+        similar: List[Union[Tuple[int, float], int]] = []
         for q, qx in zip([query], query_matrix):
             distances = spatial.distance.cdist([qx], self.vocab_matrix, self.metric)
             distances = zip(range(len(distances[0])), distances[0])
@@ -165,36 +162,35 @@ class QAAM:
             for index, distance in distances[0:top_k]:
                 k = 1 - distance
                 if k >= self.threshold:
-                    doc = self.document[index]
+                    doc_id = index
                     if return_score:
-                        similar.append((doc, k))
+                        similar.append((doc_id, k))
                     else:
-                        similar.append(doc)
+                        similar.append(doc_id)
         return similar
 
     def _build_answer(self, question: str, top_k: int) -> AutoModelPrediction:
         # correct the question to the context (if neeeded)
         question = self.speller.correct_string(question)
-
-        # convert the question to query form and build the context
-        query = " ".join(self.speller.tokenize(question))
-        documents = self.similar_documents(query, top_k, return_score=False)
-        paragraph = " ".join(documents)
-
-        # proper cleaning before passing the context is important
-        # the following steps work for multiple variations of text
-        context = paragraph.replace("\n\n", "\n").replace("\n", " ")
-        context = normalize_whitespace(context.strip())
-
+        to_query = " ".join(self.speller.tokenize(question))
+        # fetch k similar document from the transformed question to query
+        doc_ids = self.similar_documents(to_query, top_k, return_score=False)
+        context = self._preprocess_context(doc_ids)
         # summarize the context if larger than 80 characters
         if self.summarize and len(context) >= 80:
             context = text_summarizer(context)
-
         # pass the corrected question and the context to the Transformers model
-        prediction = self.qa_model({"question": question, "context": context})
-        prediction["context"] = context
-        prediction["question"] = question
-        return prediction
+        predict = self.qa_model({"question": question, "context": context})
+        predict["context"] = context
+        predict["question"] = question
+        return predict
+
+    def _preprocess_context(self, doc_ids: List[int]) -> str:
+        # proper cleaning before passing the context to the model
+        documents = [self.document[index] for index in doc_ids]
+        paragraph = " ".join(documents)
+        context = paragraph.replace("\n\n", "\n").replace("\n", " ")
+        return normalize_whitespace(context.strip())
 
     def _preprocess_texts(self, texts: str):
         texts = normalize_whitespace(unicode_to_ascii(texts))
