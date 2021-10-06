@@ -1,5 +1,7 @@
 # QAAM (Question Answering Auto Model)
 
+> **NOTE**: The project is unmaintained; I wrote the code when I started programming and to gain intuition with NLP.
+
 - **Automatic question answering from any text source**
 
 `QAAM` is a question and answering engine for answering questions of any text documents or texts extracted from a website's URL (see below). The model leverages a fine-tuned representation on *SQuAD* from the `Transformers` library while the context treated by proper tokenization techniques for online text.
